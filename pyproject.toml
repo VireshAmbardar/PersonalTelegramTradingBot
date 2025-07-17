@@ -1,0 +1,23 @@
+[project]
+name = "TelegramMessageReader"
+description = "My telegram message reader bot"
+package-mode = false
+authors = [
+    {name = "viresh"}
+]
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "python-dotenv (>=1.0.1,<2.0.0)",
+    "python-telegram-bot (>=21.10,<22.0)",
+    "telethon (>=1.40.0,<2.0.0)",
+    "loguru (>=0.7.3,<0.8.0)",
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+package-mode = false
