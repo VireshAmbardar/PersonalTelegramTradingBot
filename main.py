@@ -2,10 +2,14 @@ import asyncio
 from telethon import TelegramClient, events
 import sys
 from loguru import logger
+from telethon.errors import RPCError, common
+from dotenv import load_dotenv
+import os
+load_dotenv()
 
 # ── CONFIG ─────────────────────────────────────────────────────────────────────
-api_id =  17335904                      # your API ID
-api_hash = 'e84060b2150ba1eb5ab435c3ce879d78'
+api_id =  os.getenv('APP_ID')                     # your API ID
+api_hash = os.getenv('APP_HASH')
 
 LOG_FILENAME = 'telegram.log'
 
@@ -28,12 +32,19 @@ async def handle_new_message(event):
     This handler is called whenever you receive a new message,
     whether in a private chat or any group/channel you're a member of.
     """
-    sender = await event.get_sender()
-    logger.info(sender)
-    # print(sender)
-    # name = sender.username or sender.first_name
-    # print(f"New message from {name}: {event.raw_text}")
-    logger.info(f"New message {event.raw_text }")
+    try:
+        sender = await event.get_sender()
+        logger.info(sender)
+        # print(sender)
+        # name = sender.username or sender.first_name
+        # print(f"New message from {name}: {event.raw_text}")
+        logger.info(f"New message {event.raw_text }")
+    except common.TypeNotFoundError as e:
+        # Known Telethon deserialization glitch—just warn and continue
+        logger.warning(f"Ignored unknown TLObject: {e}")
+        pass
+    except:
+        pass
 
 async def main():
     # Start the client (prompts login on first run)
