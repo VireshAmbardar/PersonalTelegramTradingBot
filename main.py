@@ -2,54 +2,56 @@ import asyncio
 from telethon import TelegramClient, events
 import sys
 from loguru import logger
-from telethon.errors import RPCError, common
+from telethon.errors import common
 from dotenv import load_dotenv
 import os
+from signal_processing.signal_handler import process_signal
+
 load_dotenv()
 
 # ── CONFIG ─────────────────────────────────────────────────────────────────────
-api_id =  os.getenv('APP_ID')                     # your API ID
+api_id = os.getenv('APP_ID')  # your API ID
 api_hash = os.getenv('APP_HASH')
 
 LOG_FILENAME = 'telegram.log'
 
 # ── CONFIGURE LOGURU ────────────────────────────────────────────────────────────
-logger.remove()                                  # Remove default sink
-logger.add(sys.stderr, level="INFO")             # Console output
+logger.remove()  # Remove default sink
+logger.add(sys.stderr, level="INFO")  # Console output
 logger.add(
     LOG_FILENAME,
-    rotation="00:00",      # Rotate daily at midnight
-    retention="7 days",    # Keep logs for one week
-    compression="zip"      # Compress rotated logs
+    rotation="00:00",  # Rotate daily at midnight
+    retention="7 days",  # Keep logs for one week
+    compression="zip"  # Compress rotated logs
 )
 
 # ── TELETHON CLIENT ─────────────────────────────────────────────────────────────
 client = TelegramClient('user_session', api_id, api_hash)
 
-@client.on(events.NewMessage)
+# Channel IDs
+Billion_Forex_Channel_id = 1175415497 
+Nitro_Channel_id = 1802644203 
+Crypt_Space_Channel_id = 1879457222
+
+# ── EVENT CLIENT ─────────────────────────────────────────────────────────────
+@client.on(events.NewMessage(chats=[Crypt_Space_Channel_id]))
 async def handle_new_message(event):
-    """
-    This handler is called whenever you receive a new message,
-    whether in a private chat or any group/channel you're a member of.
-    """
     try:
         sender = await event.get_sender()
-        logger.info(sender)
-        # print(sender)
-        # name = sender.username or sender.first_name
-        # print(f"New message from {name}: {event.raw_text}")
-        logger.info(f"New message {event.raw_text }")
+        logger.info(f"New message received: {event.raw_text}")
+        
+        # Process the message to see if it contains a trading signal
+        await process_signal(event.raw_text)
+
     except common.TypeNotFoundError as e:
-        # Known Telethon deserialization glitch—just warn and continue
         logger.warning(f"Ignored unknown TLObject: {e}")
         pass
-    except:
-        pass
+    except Exception as e:
+        logger.error(f"Error processing message: {e}")
 
+# ── MAIN LOOP ─────────────────────────────────────────────────────────────────
 async def main():
-    # Start the client (prompts login on first run)
     await client.start()
-    # print("Client is running. Listening for new messages...")
     logger.info("✅ Client started and listening for messages...")
     await client.run_until_disconnected()
 
