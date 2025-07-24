@@ -1,66 +1,60 @@
-import asyncio
-import websockets
+
 import json
-import os
-from dotenv import load_dotenv
-import requests
+import websocket
+import gzip
+import io
+URL="wss://open-api-swap.bingx.com/swap-market" 
+CHANNEL= {"id":"24dd0e35-56a4-4f7a-af8a-394c7060909c","reqType": "sub","dataType":"BTC-USDT@markPrice"}
+class Test(object):
 
-# Load API keys from the .env file
-load_dotenv()
-API_KEY = os.getenv('API_KEY')
-SECRET_KEY = os.getenv('SECRET_KEY')
+    def __init__(self):
+        self.url = URL 
+        self.ws = None
 
-# Function to get listenKey (for WebSocket connection)
-def get_listen_key():
-    url = "https://api.bingx.com/swap/v2/user/stream"
-    headers = {
-        'API-KEY': API_KEY,
-        'API-SECRET': SECRET_KEY
-    }
-    response = requests.post(url, headers=headers)
+    def on_open(self, ws):
+        print('WebSocket connected')
+        subStr = json.dumps(CHANNEL)
+        ws.send(subStr)
+        # print("Subscribed to :",subStr)
+
+    def on_data(self, ws, string, type, continue_flag):
+        compressed_data = gzip.GzipFile(fileobj=io.BytesIO(string), mode='rb')
+        decompressed_data = compressed_data.read()
+        utf8_data = decompressed_data.decode('utf-8')
+        # print(utf8_data)
+
+    def on_message(self, ws, message):
+        compressed_data = gzip.GzipFile(fileobj=io.BytesIO(message), mode='rb')
+        decompressed_data = compressed_data.read()
+        utf8_data = decompressed_data.decode('utf-8')
+        # print(utf8_data, type(utf8_data))  #this is the message you need 
+        try:
+            data = json.loads(utf8_data)
+            print(data['data']['p'])
+        except json.JSONDecodeError as e:
+            pass
     
-    if response.status_code == 200:
-        return response.json()['data']['listenKey']
-    else:
-        raise Exception(f"Failed to get listenKey: {response.text}")
+        if utf8_data == "Ping": # this is very important , if you receive 'Ping' you need to send 'Pong' 
+           ws.send("Pong")
 
-# WebSocket URI
-BASE_URI = "wss://ws.bingx.com/swap-ws/v2"
+    def on_error(self, ws, error):
+        print(error)
 
-# Function to connect to WebSocket and listen for real-time data
-async def get_live_data(pair="BTC-USDT"):
-    listen_key = get_listen_key()  # Get listenKey for the WebSocket connection
-    uri = f"{BASE_URI}?listenKey={listen_key}"
-    
-    async with websockets.connect(uri) as websocket:
-        print(f"Connected to {uri}")
-        
-        # Subscribe to the market data for the pair (BTC/USDT)
-        subscribe_message = {
-            "method": "SUBSCRIBE",
-            "params": [
-                f"market.{pair}.ticker"
-            ],
-            "id": 1
-        }
-        
-        await websocket.send(json.dumps(subscribe_message))
-        
-        while True:
-            response = await websocket.recv()
-            data = json.loads(response)
-            
-            if "result" in data:
-                # Extract the ask price (last trade price) from the response
-                ask_price = data['result']['askPrice']
-                print(f"Live Ask Price for {pair}: {ask_price}")
-            else:
-                print("Received data:", data)
+    def on_close(self, ws, close_status_code, close_msg):
+        print('The connection is closed!')
 
-# Main entry point to start WebSocket
-def main():
-    pair = "BTC-USDT"  # You can change this to any other pair like ETH-USDT, etc.
-    asyncio.get_event_loop().run_until_complete(get_live_data(pair))
+    def start(self):
+        self.ws = websocket.WebSocketApp(
+            self.url,
+            on_open=self.on_open,
+            on_message=self.on_message,
+            # on_data=self.on_data,
+            on_error=self.on_error,
+            on_close=self.on_close,
+        )
+        self.ws.run_forever()
+
 
 if __name__ == "__main__":
-    main()
+    test = Test()
+    test.start()

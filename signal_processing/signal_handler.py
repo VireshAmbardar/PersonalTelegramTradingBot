@@ -3,6 +3,7 @@ import re
 # from signal_processing.signal_tracker import track_signal
 from loguru import logger
 import asyncio
+from schema import TradeType
 # Function to process incoming messages and check if they contain a valid buy/sell signal
 async def process_signal(message: str):
     # Example regex to extract the signal information (you may need to modify this based on your message format)
@@ -10,34 +11,57 @@ async def process_signal(message: str):
     Process the message to extract buy/sell signal details such as coin pair,
     target prices (TP1, TP2, TP3), and stop loss.
     """
-    # Regex patterns for messages containing valid buy/sell signals
-    # print(message)
     pattern_search = r"""
-            \#(\w+\/USDT)                 
-            .*?                          
-            TP1:\s*([\d\.]+)             
-            .*?                          
-            TP2:\s*([\d\.]+)             
-            .*?                          
-            TP3:\s*([\d\.]+)             
-            .*?                          
-            [Ss][Tt][Oo][Pp]\s*[Ll][Oo][Ss][Ss]:?\s*([\d\.]+)  
+            \#(\w+\/USDT)                                      # Group 1: Coin pair
+            .*?
+            (LONG|SHORT|Entry\s*Zone)\s*[:\-]?\s*              # Group 2: Trade type (LONG, SHORT, or Entry Zone)
+            ([\d\.]+)\s*[–\-]\s*([\d\.]+)                      # Groups 3-4: Buy range start and end
+            .*?
+            TP1:\s*([\d\.]+)                                   # Group 5: TP1
+            .*?
+            TP2:\s*([\d\.]+)                                   # Group 6: TP2
+            .*?
+            TP3:\s*([\d\.]+)                                   # Group 7: TP3
+            .*?
+            TP4:\s*([\d\.]+)                                   # Group 8: TP4
+            .*?
+            STOP\s*LOSS\s*[:\-]?\s*([\d\.]+)                   # Group 9: Stop Loss
         """
+
     # Matching the pattern for buy/sell signal
     match = re.search(pattern_search, message,re.DOTALL | re.VERBOSE | re.IGNORECASE)
 
     if match:
-        coin_pair = match.group(1)  # e.g., "RVN/USDT"
-        target1 = float(match.group(2))    # TP1 value
-        target2 = float(match.group(3))    # TP2 value
-        target3 = float(match.group(4))    # TP3 value
-        stop_loss = float(match.group(5))  # Stop Loss value
+        coin_pair = match.group(1)
+        trade_type = match.group(2).upper()  # Normalize to "LONG"/"SHORT"
         
+        if "SHORT" in trade_type:
+            trade_type = TradeType.SHORT
+        else:
+            trade_type = TradeType.LONG
+
+        buy_range_start = match.group(3)
+        buy_range_end = match.group(4)
+        tp1 = match.group(5)
+        tp2 = match.group(6)
+        tp3 = match.group(7)
+        tp4 = match.group(8)
+        stop_loss = match.group(9)
         # logger.info(f"Signal detected: {coin_pair} - Targets: {target1}, {target2}, {target3} - SL: {stop_loss}")
-        print(f"Coin Pair: {coin_pair}, TP1: {target1}, TP2: {target2}, TP3: {target3}, Stop Loss: {stop_loss}")
-        
+        # print(f"Coin Pair: {coin_pair}, TP1: {target1}, TP2: {target2}, TP3: {target3}, Stop Loss: {stop_loss}")
+        print(f"""
+            Coin Pair  : {coin_pair}
+            Trade Type : {trade_type}
+            Buy Range  : {buy_range_start} - {buy_range_end}
+            TP1        : {tp1}
+            TP2        : {tp2}
+            TP3        : {tp3}
+            TP4        : {tp4}
+            Stop Loss  : {stop_loss}
+            """)
+                
         # Start tracking the signal in a new thread
-        # await track_signal(coin_pair, target1, target2, target3, stop_loss)
+        # await track_signal(coin_pair, trade_type, (buy_range_start,buy_range_end) tp1, tp2, tp3, tp4, stop_loss)
         # print(coin_pair, target1, target2, target3, stop_loss)
 
 # Sample 
