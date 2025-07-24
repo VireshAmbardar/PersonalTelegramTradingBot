@@ -6,6 +6,7 @@ async def track_price(coin_pair: str, target1: str, target2: str, target3: str, 
     async with websockets.connect('wss://yourbroker.com/price_feed') as websocket:
         while True:
             # Send a message to the WebSocket server to get the current price of the coin pair
+            #TODO : Add logic to subscribe to market ticker data.
             await websocket.send(f"GET_PRICE {coin_pair}")
             
             # Receive the price data
