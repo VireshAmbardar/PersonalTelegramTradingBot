@@ -18,4 +18,5 @@ async def track_signal(coin_pair: str,trade_type:TradeType, buy_range:tuple, tar
     #     args=(coin_pair, target1, target2, target3, stop_loss)
     # )
     # signal_thread.start()
-    executor.submit(track_price, coin_pair,buy_range, target1, target2, target3, target4,stop_loss)
+    coin_name  = coin_pair.split('/')[0]
+    executor.submit(track_price, coin_name ,buy_range, target1, target2, target3, target4,stop_loss)

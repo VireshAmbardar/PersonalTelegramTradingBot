@@ -1,9 +1,8 @@
 import re
-# from signal_processing.signal_tracker import track_signal
-# from signal_processing.signal_tracker import track_signal
 from loguru import logger
 import asyncio
 from schema import TradeType
+from signal_processing.signal_tracker import track_signal
 # Function to process incoming messages and check if they contain a valid buy/sell signal
 async def process_signal(message: str):
     # Example regex to extract the signal information (you may need to modify this based on your message format)
@@ -61,7 +60,7 @@ async def process_signal(message: str):
             """)
                 
         # Start tracking the signal in a new thread
-        # await track_signal(coin_pair, trade_type, (buy_range_start,buy_range_end) tp1, tp2, tp3, tp4, stop_loss)
+        await track_signal(coin_pair, trade_type, (buy_range_start,buy_range_end), tp1, tp2, tp3, tp4, stop_loss)
         # print(coin_pair, target1, target2, target3, stop_loss)
 
 # Sample 
