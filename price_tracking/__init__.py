@@ -1,2 +1,2 @@
 from . import price_updater
-from . import websocket_tracker
+from ..signal_processing import websocket_tracker

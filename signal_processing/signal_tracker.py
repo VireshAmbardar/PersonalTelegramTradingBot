@@ -1,6 +1,6 @@
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from price_tracking.websocket_tracker import track_price
+from signal_processing.websocket_tracker import track_price
 from schema import TradeType
 
 MAX_THREADS = 5
