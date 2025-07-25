@@ -30,6 +30,9 @@ def log_open_position(signal_id, coin_pair, trade_type, entry_price):
     # Append to DataFrame
     global positions_df
     positions_df = positions_df.append(new_position, ignore_index=True)
+    
+    # Save to CSV immediately after logging the open position
+    save_to_csv()
     return signal_id
 
 # Function to log closed positions
@@ -48,6 +51,8 @@ def log_closed_position(signal_id, exit_price, target_reached=None, stop_loss_tr
     positions_df.loc[positions_df['Signal ID'] == signal_id, 'Stop Loss Triggered'] = stop_loss_triggered
     positions_df.loc[positions_df['Signal ID'] == signal_id, 'updated_at'] = updated_at
 
+    save_to_csv()
+
 # Function to update positions (for cases where TP2, TP3, SL scenarios happen)
 def update_position(signal_id, target_reached, stop_loss_triggered, new_sl_value=None):
     updated_at = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -64,6 +69,8 @@ def update_position(signal_id, target_reached, stop_loss_triggered, new_sl_value
     positions_df.loc[positions_df['Signal ID'] == signal_id, 'Target Reached'] = target_reached
     positions_df.loc[positions_df['Signal ID'] == signal_id, 'Stop Loss Triggered'] = stop_loss_triggered
     positions_df.loc[positions_df['Signal ID'] == signal_id, 'updated_at'] = updated_at
+
+    save_to_csv()
 
 
 # Save DataFrame to CSV
@@ -86,4 +93,4 @@ def save_to_excel():
 # save_to_csv()
 # save_to_excel()
 
-print("Positions have been logged and saved to CSV/Excel.")
+# print("Positions have been logged and saved to CSV/Excel.")

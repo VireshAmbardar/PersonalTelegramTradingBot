@@ -4,12 +4,16 @@ import json
 import gzip
 import io
 from schema import TradeType
-from backtesting import log_open_position,log_closed_position,update_position
+from backtesting import log_open_position, log_closed_position, update_position
 
+import os
+from dotenv import load_dotenv
+load_dotenv()
 
-URL = "wss://open-api-swap.bingx.com/swap-market" 
+URL = f"wss://open-api-swap.bingx.com/swap-market?listenKey={os.getenv('BINGX_API_KEY')}"
+
 # WebSocket tracking function to track real-time price of a coin pair
-async def track_price(coin_pair: str,type:TradeType, buy_range: tuple, targets: list, stop_loss: float):
+async def track_price(coin_pair: str, type: TradeType, buy_range: tuple, targets: list, stop_loss: float):
     """
     Track price of the given coin pair and check against the given targets and stop loss.
     """
@@ -18,108 +22,113 @@ async def track_price(coin_pair: str,type:TradeType, buy_range: tuple, targets: 
     position_closed = False
     signal_id = None
     price = 0
-    # Connect to WebSocket
-    async with websockets.connect(URL) as websocket:
-        # Send subscription message
-        subscription_msg = {
-            "id": "24dd0e35-56a4-4f7a-af8a-394c7060909c",
-            "reqType": "sub",
-            "dataType": f"{coin_pair}-USDT@markPrice"
-        }
 
-        await websocket.send(json.dumps(subscription_msg))
-        print(f"Subscribed to {coin_pair}-USDT market price updates")
+    while not position_closed:
+        try:
+            # Attempt to connect to WebSocket
+            async with websockets.connect(URL) as websocket:
+                print(f"Subscribed to {coin_pair}-USDT market price updates")
 
-        while not position_closed:
-            # Receive price data from WebSocket
-            message = await websocket.recv()
-            # Handle decompression
-            compressed_data = gzip.GzipFile(fileobj=io.BytesIO(message), mode='rb')
-            decompressed_data = compressed_data.read()
-            utf8_data = decompressed_data.decode('utf-8')
+                subscription_msg = {
+                    "id": "24dd0e35-56a4-4f7a-af8a-394c7060909c",
+                    "reqType": "sub",
+                    "dataType": f"{coin_pair}-USDT@markPrice"
+                }
 
-            
-            if utf8_data:
-                try:
-                    data = json.loads(utf8_data)
-                    data  = data['data']
-                    
-                    if data:
-                        price = float(data['p'])
-                    sl =  stop_loss
-                    print(f"Current Price for {coin_pair}-USDT: {price}")
+                await websocket.send(json.dumps(subscription_msg))
 
-                    # ── LONG LOGIC ─────────────────────────────────────────────────────────────
-                    if type == TradeType.LONG:
-                        
-                        if not has_bought and price>buy_range[0] and price<buy_range[1]:
-                            # Place the order here (interaction with broker API)
-                            print(f"buying the ETH bcz price {price}is between {buy_range[0]} and {buy_range[1]}")
-                            # Log open position and get signal ID when order is placed
-                            signal_id = log_open_position(coin_pair, type.name, price)
-                            # entry_price = bingXbuy_maretPrice()
-                            has_bought = True
-                            new_sl_value = round(price*1.005 ,2) # replace it with entry_price 
+                while not position_closed:
+                    try:
+                        message = await asyncio.wait_for(websocket.recv(), timeout=60)
+                        compressed_data = gzip.GzipFile(fileobj=io.BytesIO(message), mode='rb')
+                        decompressed_data = compressed_data.read()
+                        utf8_data = decompressed_data.decode('utf-8')
 
-                        if has_bought:
-                            for i, target in enumerate(targets, 1):
-                                if price >= target and new_sl_value:
-                                    print(f"Target {i} reached for {coin_pair}. Updating SL to: {new_sl_value}")
-                                    update_position(signal_id, target_reached=f"TP{i}", stop_loss_triggered=None, new_sl_value=new_sl_value)
-                                    break
+                        if utf8_data:
+                            data = json.loads(utf8_data).get('data')
+                            if data:
+                                price = float(data['p'])
+                                print(f"Current Price for {coin_pair}-USDT: {price}")
 
-                            if price >= targets[-1]:
-                                print(f"All targets hit for {coin_pair}. Exiting position.")
-                                log_closed_position(signal_id, price, target_reached="TP4", stop_loss_triggered=None)
-                                position_closed = True
-                                break
+                                # ── LONG LOGIC ─────────────────────────────────────────────────────────────
+                                if type == TradeType.LONG:
+                                    if not has_bought and buy_range[0] < price < buy_range[1]:
+                                        print(f"Buying {coin_pair} at {price}, within range {buy_range}")
+                                        signal_id = log_open_position(coin_pair, type.name, price)
+                                        has_bought = True
+                                        new_sl_value = round(price * 1.005, 2)
 
-                            if price <= stop_loss:
-                                print(f"Stop Loss hit for {coin_pair} at price {price}. Closing the position.")
-                                log_closed_position(signal_id, price, target_reached=None, stop_loss_triggered="Yes")
-                                position_closed = True
-                                break
-                    
-                    # ── SHORT LOGIC ─────────────────────────────────────────────────────────────
-                    elif type == TradeType.SHORT:
-                        if not has_bought and price > buy_range[0] and price < buy_range[1]:
-                            signal_id = log_open_position(coin_pair, type.name, price)
-                            # entry_price = bingXbuy_maretPrice()
-                            has_bought = True
-                            new_sl_value = round(price * 0.995, 2) # replace it with entry_price
+                                    if has_bought:
+                                        for i, target in enumerate(targets, 1):
+                                            if price >= target and new_sl_value:
+                                                print(f"Target {i} reached for {coin_pair}. Updating SL to: {new_sl_value}")
+                                                update_position(signal_id, target_reached=f"TP{i}", stop_loss_triggered=None, new_sl_value=new_sl_value)
+                                                break
 
-                        if has_bought:
-                            for i, target in enumerate(targets, 1):
-                                if price <= target and new_sl_value:
-                                    print(f"Target {i} reached for {coin_pair}. Updating SL to: {new_sl_value}")
-                                    update_position(signal_id, target_reached=f"TP{i}", stop_loss_triggered=None, new_sl_value=new_sl_value)
-                                    break
+                                        if price >= targets[-1]:
+                                            print(f"All targets hit for {coin_pair}. Exiting position.")
+                                            log_closed_position(signal_id, price, target_reached="TP4", stop_loss_triggered=None)
+                                            position_closed = True
 
-                            # Close the position if TP4 or Stop Loss is hit
-                            if price <= targets[-1]:
-                                print(f"All targets hit for {coin_pair}. Exiting position.")
-                                log_closed_position(signal_id, price, target_reached="TP4", stop_loss_triggered=None)
-                                position_closed = True
-                                break
+                                        elif price <= stop_loss:
+                                            print(f"Stop Loss hit for {coin_pair} at price {price}. Closing the position.")
+                                            log_closed_position(signal_id, price, target_reached=None, stop_loss_triggered="Yes")
+                                            position_closed = True
 
-                            if price >= stop_loss:
-                                print(f"Stop Loss hit for {coin_pair} at price {price}. Closing the position.")
-                                log_closed_position(signal_id, price, target_reached=None, stop_loss_triggered="Yes")
-                                position_closed = True
-                                break
+                                # ── SHORT LOGIC ─────────────────────────────────────────────────────────────
+                                elif type == TradeType.SHORT:
+                                    if not has_bought and buy_range[0] < price < buy_range[1]:
+                                        print(f"Buying {coin_pair} at {price}, within range {buy_range}")
+                                        signal_id = log_open_position(coin_pair, type.name, price)
+                                        has_bought = True
+                                        new_sl_value = round(price * 0.995, 2)
 
-                except json.JSONDecodeError as e:
-                    # print(f"Error decoding WebSocket message: {e}")
-                    pass
+                                    if has_bought:
+                                        for i, target in enumerate(targets, 1):
+                                            if price <= target and new_sl_value:
+                                                print(f"Target {i} reached for {coin_pair}. Updating SL to: {new_sl_value}")
+                                                update_position(signal_id, target_reached=f"TP{i}", stop_loss_triggered=None, new_sl_value=new_sl_value)
+                                                break
 
-            await asyncio.sleep(1)  # Delay for 1 second before checking again
+                                        if price <= targets[-1]:
+                                            print(f"All targets hit for {coin_pair}. Exiting position.")
+                                            log_closed_position(signal_id, price, target_reached="TP4", stop_loss_triggered=None)
+                                            position_closed = True
+
+                                        elif price >= stop_loss:
+                                            print(f"Stop Loss hit for {coin_pair} at price {price}. Closing the position.")
+                                            log_closed_position(signal_id, price, target_reached=None, stop_loss_triggered="Yes")
+                                            position_closed = True
+
+                    except asyncio.TimeoutError:
+                        print(f"Timeout reached while waiting for WebSocket message. Retrying in 5 seconds...")
+                        await asyncio.sleep(5)
+                        continue  # Retry on timeout
+
+                    except Exception as e:
+                        print(f"Error processing message: {e}. Retrying in 5 seconds...")
+                        await asyncio.sleep(5)
+                        continue  # Retry on other errors
+
+        except websockets.exceptions.WebSocketException as e:
+            print(f"WebSocket connection error: {e}. Retrying in 3 seconds...")
+            await asyncio.sleep(3)
+            continue  # Retry on WebSocket connection failure
+
+        except Exception as e:
+            print(f"Unexpected error: {e}. Retrying in 3 seconds...")
+            await asyncio.sleep(3)
+            continue  # Retry on other errors
+
+    if position_closed:
+        print("Position closed successfully")
+    else:
+        print("WebSocket closed without closing the position.")
 
 # Function to handle multiple coin pairs in parallel
 async def process_all_messages():
     # Example to track multiple coin pairs
-    await track_price("ETH",TradeType.LONG, (3300.23, 3400), 3756, 4000 , 4500, 5500, 3000)
-    # You can add other coin pairs as needed
-    # await track_price("XRP-USDT",,"SHORT" (0.50, 0.52), 0.55, 0.60, 0.65, 0.70, 0.45)
+    await track_price("FARTCOIN", TradeType.LONG, (1.418, 1.4400), [1.4400, 1.4800, 1.5500, 1.6000], 1.2870)
 
 # Main entry point for the program
 if __name__ == '__main__':
