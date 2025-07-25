@@ -4,6 +4,7 @@ import json
 import gzip
 import io
 from schema import TradeType
+from backtesting import log_open_position,log_closed_position,update_position
 
 
 URL = "wss://open-api-swap.bingx.com/swap-market" 
@@ -14,6 +15,8 @@ async def track_price(coin_pair: str,type:TradeType, buy_range: tuple, target1: 
     """
     has_bought = False
     new_sl_value = None
+    position_closed = False
+    signal_id = None
     # Connect to WebSocket
     async with websockets.connect(URL) as websocket:
         # Send subscription message
@@ -26,7 +29,7 @@ async def track_price(coin_pair: str,type:TradeType, buy_range: tuple, target1: 
         await websocket.send(json.dumps(subscription_msg))
         print(f"Subscribed to {coin_pair}-USDT market price updates")
 
-        while True:
+        while not position_closed:
             # Receive price data from WebSocket
             message = await websocket.recv()
             # Handle decompression
@@ -52,6 +55,7 @@ async def track_price(coin_pair: str,type:TradeType, buy_range: tuple, target1: 
                             # Place the order here (interaction with broker API)
                             print(f"buying the ETH bcz price {price}is between {buy_range[0]} and {buy_range[1]}")
                             
+                            signal_id = log_open_position(coin_pair, type.name, price)
                             has_bought = True
                             new_sl_value = round(price*1.005 ,2)
                             
@@ -63,18 +67,38 @@ async def track_price(coin_pair: str,type:TradeType, buy_range: tuple, target1: 
 
                         elif has_bought and price>target2:
                             print("Sell 30% of the position")
+                            update_position(signal_id, target_reached="TP2", stop_loss_triggered=None, new_sl_value=new_sl_value)
+
+                        elif has_bought and price>=target3:
+                            print("Sell 30% of the position")
+                            update_position(signal_id, target_reached="TP3", stop_loss_triggered=None, new_sl_value=new_sl_value)
+                        
+                        elif has_bought and price>=target4:
+                            print("All target hit")
+                            update_position(signal_id, target_reached="TP2", stop_loss_triggered=None, new_sl_value=new_sl_value)
+
+                            # close the thread
+                            position_closed = True
+                            break  
 
                         elif has_bought and price<sl:
                             print("Close the position")
+
+                            log_closed_position(signal_id, price, target_reached=None, stop_loss_triggered="Yes")
+
+                            # close the thread
+                            position_closed = True
+                            break  
 
                     # ── SHORT LOGIC ─────────────────────────────────────────────────────────────
                     if type == TradeType.SHORT:
                         if not has_bought and price>buy_range[0] and price<buy_range[1]:
                             print(f"buying the ETH bcz price {price}is between {buy_range[0]} and {buy_range[1]}")
 
-                        elif has_bought and price<target1:
+                        elif has_bought and price<target1 and new_sl_value:
                             print("Sell 30% of the position  and move SL to Entry")
                             # update the SL value
+                            sl = new_sl_value
 
                         elif has_bought and price<target2:
                             print("Sell 30% of the position")
