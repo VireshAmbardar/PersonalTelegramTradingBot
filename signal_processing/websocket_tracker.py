@@ -9,8 +9,9 @@ from backtesting import log_open_position, log_closed_position, update_position
 import os
 from dotenv import load_dotenv
 load_dotenv()
+from BingX import generate_listen_key,extend_listen_key
 
-URL = f"wss://open-api-swap.bingx.com/swap-market?listenKey={os.getenv('BINGX_API_KEY')}"
+URL = f"wss://open-api-swap.bingx.com/swap-market"
 
 # WebSocket tracking function to track real-time price of a coin pair
 async def track_price(coin_pair: str, type: TradeType, buy_range: tuple, targets: list, stop_loss: float):
@@ -26,13 +27,19 @@ async def track_price(coin_pair: str, type: TradeType, buy_range: tuple, targets
     while not position_closed:
         try:
             # Attempt to connect to WebSocket
-            async with websockets.connect(URL) as websocket:
+            listining_key = generate_listen_key()
+            async with websockets.connect(URL + f"?listenKey={listining_key}") as websocket:
                 print(f"Subscribed to {coin_pair}-USDT market price updates")
 
                 subscription_msg = {
                     "id": "24dd0e35-56a4-4f7a-af8a-394c7060909c",
                     "reqType": "sub",
                     "dataType": f"{coin_pair}-USDT@markPrice"
+                }
+                subscription_msg_ = {
+                    "id": "24dd0e35-56a4-4f7a-af8a-394c7060909c",
+                    "reqType": "sub",
+                    "dataType": f"{coin_pair}-USDT@lastPrice"
                 }
 
                 await websocket.send(json.dumps(subscription_msg))
@@ -49,6 +56,8 @@ async def track_price(coin_pair: str, type: TradeType, buy_range: tuple, targets
                             if data:
                                 price = float(data['p'])
                                 print(f"Current Price for {coin_pair}-USDT: {price}")
+                                if price<=1.355 or price >= 1.36:
+                                    break
 
                                 # ── LONG LOGIC ─────────────────────────────────────────────────────────────
                                 if type == TradeType.LONG:
@@ -103,21 +112,24 @@ async def track_price(coin_pair: str, type: TradeType, buy_range: tuple, targets
                     except asyncio.TimeoutError:
                         print(f"Timeout reached while waiting for WebSocket message. Retrying in 5 seconds...")
                         await asyncio.sleep(5)
+                        extend_listen_key(listining_key)
                         continue  # Retry on timeout
 
                     except Exception as e:
                         print(f"Error processing message: {e}. Retrying in 5 seconds...")
                         await asyncio.sleep(5)
+                        
                         continue  # Retry on other errors
 
-        except websockets.exceptions.WebSocketException as e:
-            print(f"WebSocket connection error: {e}. Retrying in 3 seconds...")
-            await asyncio.sleep(3)
-            continue  # Retry on WebSocket connection failure
+        # except websockets.exceptions.WebSocketException as e:
+        #     print(f"WebSocket connection error: {e}. Retrying in 3 seconds...")
+        #     await asyncio.sleep(3)
+        #     continue  # Retry on WebSocket connection failure
 
         except Exception as e:
             print(f"Unexpected error: {e}. Retrying in 3 seconds...")
             await asyncio.sleep(3)
+            
             continue  # Retry on other errors
 
     if position_closed:
