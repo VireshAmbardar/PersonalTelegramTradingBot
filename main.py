@@ -10,7 +10,7 @@ from signal_processing.signal_handler import process_signal
 load_dotenv()
 
 # ── CONFIG ─────────────────────────────────────────────────────────────────────
-api_id = os.getenv('APP_ID')  # your API ID
+api_id = os.getenv('APP_ID')  
 api_hash = os.getenv('APP_HASH')
 
 LOG_FILENAME = 'telegram.log'

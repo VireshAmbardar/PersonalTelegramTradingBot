@@ -11,7 +11,6 @@ executor = ThreadPoolExecutor(max_workers=MAX_THREADS)
 
 # Function to track each signal in its own thread
 async def track_signal(coin_pair: str,trade_type:TradeType, buy_range:tuple, target1: str, target2: str, target3: str,target4: str, stop_loss: str):
-    # Each signal will run in a separate thread
     
     # signal_thread = threading.Thread(
     #     target=track_price,
